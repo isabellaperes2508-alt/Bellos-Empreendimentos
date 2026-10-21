@@ -1,0 +1,5 @@
+import {createInterface} from 'node:readline/promises';
+import {Writable} from 'node:stream';
+import {openDatabase,createSuperadmin} from '../storage.mjs';
+let muted=false;const output=new Writable({write(chunk,encoding,callback){if(!muted)process.stdout.write(chunk,encoding);callback()}});const rl=createInterface({input:process.stdin,output,terminal:true});
+const db=openDatabase();try{const name=(await rl.question('Seu nome completo [Isabella Cleto]: ')).trim()||'Isabella Cleto';process.stdout.write('Crie sua senha de seis números (oculta): ');muted=true;const pin=await rl.question('');muted=false;process.stdout.write('\nRepita a senha (oculta): ');muted=true;const again=await rl.question('');muted=false;process.stdout.write('\n');if(pin!==again)throw Error('As senhas não coincidem.');const account=await createSuperadmin(db,name,pin);console.log('Conta exclusiva criada. Usuário: '+account.username+'\nEntre em /administracao/. Guarde sua senha; ela não será exibida.')}catch(e){muted=false;console.error(e.message);process.exitCode=1}finally{rl.close();db.close()}
