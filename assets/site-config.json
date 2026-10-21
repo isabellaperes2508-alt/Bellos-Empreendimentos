@@ -1,5 +1,4 @@
 {
-  "appOrigin": "",
   "properties": [
     {
       "id": "floratta",
@@ -8,5 +7,7 @@
       "type": "Loteamento",
       "description": "Um novo jeito de viver nas montanhas capixabas."
     }
-  ]
+  ],
+  "portalBase": "assets/portal/",
+  "apiUrl": "https://lvbxiqmpnvzuaevdqedt.supabase.co/functions/v1/bellos-empreendimentos"
 }

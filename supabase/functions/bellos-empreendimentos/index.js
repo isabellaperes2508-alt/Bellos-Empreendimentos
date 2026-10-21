@@ -1,0 +1,32 @@
+import {fail,profileInput,propertyAction,emptyData,publicProfile,safeUser,accountsFor,scopedProfile,checkRole} from './domain.js';
+const ORIGIN='https://isabellaperes2508-alt.github.io';
+const PORTAL=ORIGIN+'/Bellos-Empreendimentos/assets/portal/';
+const PUBLIC_COLUMNS='id,property_id,username,name,email,role,enabled,created_by,units,membership,must_change';
+async function rest(path,method='GET',body){const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');const r=await fetch(Deno.env.get('SUPABASE_URL')+'/rest/v1/'+path,{method,headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json',Prefer:'return=representation'},body:body===undefined?undefined:JSON.stringify(body)});if(!r.ok){console.error('database request failed',r.status,path.split('?')[0]);fail(500,'Não foi possível salvar ou carregar os dados. Tente novamente.')}return r.status===204?null:await r.json()}
+const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),x=>x.toString(16).padStart(2,'0')).join('');
+const json=(status,data,type='application/json')=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':type,'Cache-Control':'no-store','Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Vary':'Origin','X-Content-Type-Options':'nosniff'}});
+async function payload(req){const raw=await req.text();if(raw.length>100000)fail(413,'Dados acima do limite.');let input;try{input=JSON.parse(raw||'{}')}catch{fail(400,'Dados inválidos.')}if(!input||typeof input!=='object'||Array.isArray(input))fail(400,'Dados inválidos.');return input}
+async function audit(u,pid,event){await rest('bellos_emp_audit','POST',{user_id:u.id,property_id:pid,event})}
+async function handler(req){try{
+ if(req.method==='OPTIONS')return json(200,{ok:true});
+ const origin=req.headers.get('origin');if(origin&&origin!==ORIGIN)fail(403,'Origem não autorizada.');
+ const url=new URL(req.url),path=url.searchParams.get('route')||'/api/public/properties';
+ if(path==='/api/public/properties'&&req.method==='GET')return json(200,(await rest('bellos_emp_properties?select=profile&order=id')).map(x=>publicProfile(x.profile)));
+ const manifest=path.match(/^\/manifest\/([a-zA-Z0-9-]+)$/);
+ if(manifest&&req.method==='GET'){const [row]=await rest('bellos_emp_properties?select=profile&id=eq.'+manifest[1]);if(!row)fail(404,'Empreendimento não encontrado.');const p=row.profile;return json(200,{id:PORTAL+'?empreendimento='+p.id,name:p.name+' · Bellos',short_name:p.name.slice(0,24),lang:'pt-BR',start_url:PORTAL+'?empreendimento='+p.id+'&login=1',scope:PORTAL,display:'standalone',theme_color:p.color,background_color:'#f7f6f4',icons:[{src:PORTAL+'icons/app-192.png',sizes:'192x192',type:'image/png',purpose:'any'},{src:PORTAL+'icons/app-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}]},'application/manifest+json')}
+ const token=(req.headers.get('Authorization')||'').replace(/^Bearer /,'');if(token&&!/^[a-f0-9]{64}$/.test(token))fail(401,'Entre novamente.');
+ const authRoute=path.match(/^\/api\/(login|logout|password|activate)$/);
+ if(authRoute){if(req.method!=='POST')fail(405,'Método não permitido.');const input=await payload(req);if(authRoute[1]==='login')input.username=String(input.username||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,'.').slice(0,100);input.op=authRoute[1];const ip=await hash((req.headers.get('x-forwarded-for')||'unknown').split(',')[0].trim());const result=await rest('rpc/bellos_emp_auth','POST',{input,session_token:token,ip_key:ip});if(result.body.user)result.body.user=safeUser(result.body.user);return json(result.status,result.body)}
+ const auth=await rest('rpc/bellos_emp_auth','POST',{input:{op:'session'},session_token:token});if(auth.status!==200)return json(auth.status,auth.body);const u=auth.body;
+ if(path==='/api/admin/properties'){checkRole(u,['superadmin']);if(req.method==='GET'){const rows=await rest('bellos_emp_properties?select=profile&order=id');const users=await rest('bellos_emp_users?select=property_id');return json(200,rows.map(({profile:p})=>({...publicProfile(p),units:p.lots.length,accounts:users.filter(x=>x.property_id===p.id).length})))}if(req.method==='POST'){const input=await payload(req),p={id:'p-'+crypto.randomUUID(),...profileInput(input),lots:[],data:emptyData()};await rest('bellos_emp_properties','POST',{id:p.id,profile:p});await audit(u,p.id,'property-created');return json(201,publicProfile(p))}fail(405,'Método não permitido.')}
+ const match=path.match(/^\/api\/properties\/([a-zA-Z0-9-]+)(?:\/(accounts|actions|backup))?$/);
+ if(!match)fail(404,'Recurso não encontrado.');const pid=match[1];if(u.role!=='superadmin'&&u.property_id!==pid)fail(403,'Você não tem acesso a este empreendimento.');
+ const [row]=await rest('bellos_emp_properties?select=profile,revision&id=eq.'+pid);if(!row)fail(404,'Empreendimento não encontrado.');const p=row.profile;
+ if(match[2]==='accounts'&&req.method==='POST'){const input=await payload(req);if(input.name){const parts=String(input.name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z]+/g)||[];input.usernameBase=parts.length>1?parts[0]+'.'+parts.at(-1):''}const result=await rest('rpc/bellos_emp_account','POST',{actor_id:u.id,pid,input});if(result.status===200)await audit(u,pid,'account-updated');return json(result.status,result.body)}
+ const users=await rest('bellos_emp_users?select='+PUBLIC_COLUMNS+'&property_id=eq.'+pid+'&order=name');if(u.role==='superadmin')users.push(u);
+ if(!match[2]&&req.method==='GET')return json(200,{user:safeUser(u),property:scopedProfile(users,p,u),accounts:accountsFor(users,u,pid)});
+ if(match[2]==='backup'&&req.method==='GET'){checkRole(u,['manager','superadmin']);return json(200,scopedProfile(users,p,u))}
+ if(match[2]==='actions'&&req.method==='POST'){propertyAction(users,p,u,await payload(req));const updated=await rest('bellos_emp_properties?id=eq.'+pid+'&revision=eq.'+row.revision,'PATCH',{profile:p,revision:row.revision+1});if(!updated.length)fail(409,'Outro usuário atualizou os dados. Atualize a página e tente novamente.');await audit(u,pid,'property-updated');return json(200,{ok:true})}
+ fail(405,'Método não permitido.');
+ }catch(e){return json(e.status||400,{error:e.status?e.message:'Dados inválidos. Confira o preenchimento.'})}}
+Deno.serve(handler);
