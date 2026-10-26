@@ -1,10 +1,12 @@
 # Bellos Empreendimentos
 
-Site público no GitHub Pages, com acesso privado e dados no Supabase.
+Site público no Netlify, com acesso privado e dados no Supabase.
 
-- Apresentação: https://isabellaperes2508-alt.github.io/Bellos-Empreendimentos/
-- Floratta: https://isabellaperes2508-alt.github.io/Bellos-Empreendimentos/assets/portal/?empreendimento=floratta
-- Administração geral: https://isabellaperes2508-alt.github.io/Bellos-Empreendimentos/assets/portal/?administracao=1
+- Apresentação: https://bellos-empreendimentos.netlify.app/
+- Floratta: https://bellos-empreendimentos.netlify.app/assets/portal/?empreendimento=floratta
+- Administração geral: https://bellos-empreendimentos.netlify.app/assets/portal/?administracao=1
+
+O endereço antigo no GitHub Pages (`isabellaperes2508-alt.github.io/Bellos-Empreendimentos/`) continua aceito pela função até o repositório virar privado. Depois disso só o Netlify publica, e a função pode deixar de listar a origem do GitHub em `ORIGINS`.
 
 A conta geral de Isabella Cleto é ativada por um link privado, de uso único e com validade. O link não está neste repositório. Após a ativação, a administradora cadastra gestores por empreendimento. Gestores podem cadastrar corretores e proprietários; corretores gerenciam somente os proprietários que cadastraram. Nomes repetidos recebem um número ao final do usuário. As senhas temporárias devem ser trocadas no primeiro acesso.
 
@@ -21,7 +23,7 @@ Senhas têm hash bcrypt; tokens são aleatórios, com apenas o hash persistido n
 
 Todas as tabelas novas têm RLS, sem permissões de leitura/escrita para `anon` ou `authenticated`. O aviso informativo de RLS sem políticas é esperado: todo acesso passa pela função Edge com autorização explícita. Não habilitar políticas públicas nessas tabelas. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
 
-O workflow existente publica `index.html` e `assets/`. A pasta `app/` contém a implementação Node anterior, preservada como referência, e não é utilizada pelo site atual. Não é necessário contratar hospedagem Node para esta versão.
+O `netlify.toml` e o workflow do GitHub Pages publicam os mesmos arquivos: `index.html` e `assets/`. A pasta `app/` contém a implementação Node anterior, preservada como referência, e não é utilizada pelo site atual. Não é necessário contratar hospedagem Node para esta versão.
 
 ## Dados e limites atuais
 

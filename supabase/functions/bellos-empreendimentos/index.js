@@ -1,15 +1,15 @@
 import {fail,profileInput,propertyAction,emptyData,publicProfile,safeUser,accountsFor,scopedProfile,checkRole} from './domain.js';
-const ORIGIN='https://isabellaperes2508-alt.github.io';
-const PORTAL=ORIGIN+'/Bellos-Empreendimentos/assets/portal/';
+const ORIGINS=['https://isabellaperes2508-alt.github.io','https://bellos-empreendimentos.netlify.app'];
+const portalFor=origin=>origin+(origin.endsWith('.github.io')?'/Bellos-Empreendimentos':'')+'/assets/portal/';
 const PUBLIC_COLUMNS='id,property_id,username,name,email,role,enabled,created_by,units,membership,must_change';
 async function rest(path,method='GET',body){const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');const r=await fetch(Deno.env.get('SUPABASE_URL')+'/rest/v1/'+path,{method,headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json',Prefer:'return=representation'},body:body===undefined?undefined:JSON.stringify(body)});if(!r.ok){console.error('database request failed',r.status,path.split('?')[0]);fail(500,'Não foi possível salvar ou carregar os dados. Tente novamente.')}return r.status===204?null:await r.json()}
 const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),x=>x.toString(16).padStart(2,'0')).join('');
-const json=(status,data,type='application/json')=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':type,'Cache-Control':'no-store','Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Vary':'Origin','X-Content-Type-Options':'nosniff'}});
+const respond=(origin,status,data,type='application/json')=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':type,'Cache-Control':'no-store','Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'content-type, authorization','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Vary':'Origin','X-Content-Type-Options':'nosniff'}});
 async function payload(req){const raw=await req.text();if(raw.length>100000)fail(413,'Dados acima do limite.');let input;try{input=JSON.parse(raw||'{}')}catch{fail(400,'Dados inválidos.')}if(!input||typeof input!=='object'||Array.isArray(input))fail(400,'Dados inválidos.');return input}
 async function audit(u,pid,event){await rest('bellos_emp_audit','POST',{user_id:u.id,property_id:pid,event})}
-async function handler(req){try{
+async function handler(req){const origin=req.headers.get('origin'),allowed=ORIGINS.includes(origin)?origin:ORIGINS[0],PORTAL=portalFor(allowed),json=(status,data,type)=>respond(allowed,status,data,type);try{
  if(req.method==='OPTIONS')return json(200,{ok:true});
- const origin=req.headers.get('origin');if(origin&&origin!==ORIGIN)fail(403,'Origem não autorizada.');
+ if(origin&&!ORIGINS.includes(origin))fail(403,'Origem não autorizada.');
  const url=new URL(req.url),path=url.searchParams.get('route')||'/api/public/properties';
  if(path==='/api/public/properties'&&req.method==='GET')return json(200,(await rest('bellos_emp_properties?select=profile&order=id')).map(x=>publicProfile(x.profile)));
  const manifest=path.match(/^\/manifest\/([a-zA-Z0-9-]+)$/);

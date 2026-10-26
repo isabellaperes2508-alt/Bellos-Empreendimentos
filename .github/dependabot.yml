@@ -1,0 +1,10 @@
+# Atualizações automáticas: um PR por mês com as versões novas das ações do GitHub.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      acoes:
+        patterns: ["*"]
